@@ -57,3 +57,20 @@ sse-webchat-webchat_user_<账号ID>
 ```text
 data/webchat.db
 ```
+
+## Docker 容器化一键部署
+
+本项目支持将前端、后端以及 Nginx 整合为单一全栈镜像，实现更轻量化的开箱即用。
+
+### 1. 远程极速一键部署 (推荐)
+若目标 Linux 服务器已安装 Docker，您可以直接拷贝以下单条指令远程交互拉取：
+```bash
+sudo -E bash -c 'bash <(curl -sSL https://raw.githubusercontent.com/NekroAI/nekro-webchat/main/deploy.sh)'
+```
+
+### 2. 本地执行脚本部署
+若已克隆源码，也可在项目根目录下直接运行本地脚本：
+```bash
+chmod +x deploy.sh && ./deploy.sh
+```
+
