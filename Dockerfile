@@ -44,6 +44,9 @@ RUN uv sync --frozen --no-cache
 # 复制后端应用代码
 COPY app/ /app/app/
 
+# 复制项目自带的依赖包 SDK
+COPY nekro_agent_sse_sdk/ /app/nekro_agent_sse_sdk/
+
 # 复制前端构建产物到 Nginx 默认目录
 COPY --from=frontend-builder /frontend/dist /usr/share/nginx/html
 
