@@ -7,10 +7,8 @@ on:
   pull_request:
     branches: [ "main", "master" ]
 
-# 为了方便，镜像名称通常为 [DockerHub用户名]/nekro-webchat
-# 这里的用户名可以通过 GitHub Secrets 传入，或者硬编码
 env:
-  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/nekro-webchat
+  IMAGE_NAME: hajiming/nekro-webchat
 
 jobs:
   build:
@@ -45,5 +43,3 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
