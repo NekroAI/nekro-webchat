@@ -31,6 +31,7 @@ class Conversation(Base):
     ai_name: Mapped[str] = mapped_column(String(128), default="")
     ai_avatar: Mapped[str] = mapped_column(Text, default="")
     invite_key: Mapped[str] = mapped_column(String(64), default="")
+    channel_avatar: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -114,6 +115,7 @@ async def _ensure_columns() -> None:
             "ai_name": "TEXT DEFAULT ''",
             "ai_avatar": "TEXT DEFAULT ''",
             "invite_key": "TEXT DEFAULT ''",
+            "channel_avatar": "TEXT DEFAULT ''",
         }
         for name, ddl in conversation_adds.items():
             if name not in conversation_cols:
@@ -494,5 +496,6 @@ def conversation_to_dict(conversation: Conversation) -> dict[str, Any]:
         "ai_name": conversation.ai_name,
         "ai_avatar": conversation.ai_avatar,
         "invite_key": conversation.invite_key,
+        "channel_avatar": conversation.channel_avatar if hasattr(conversation, "channel_avatar") else "",
         "updated_at": int(conversation.updated_at.timestamp()),
     }

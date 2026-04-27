@@ -271,6 +271,120 @@ export default function App({ currentUser: initialUser, onLogout }) {
   const noticeTimerRef = useRef(null)
   const conversationsRefreshTimerRef = useRef(null)
 
+  const [cropperImage, setCropperImage] = useState(null);
+  const [cropperScale, setCropperScale] = useState(1);
+  const [cropperOffset, setCropperOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [cropperKind, setCropperKind] = useState('user');
+  const [showCropper, setShowCropper] = useState(false);
+
+  const handleDragStart = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - cropperOffset.x, y: e.clientY - cropperOffset.y });
+  };
+
+  const handleDragMove = (e) => {
+    if (!isDragging) return;
+    setCropperOffset({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      setIsDragging(true);
+      setDragStart({ 
+        x: e.touches[0].clientX - cropperOffset.x, 
+        y: e.touches[0].clientY - cropperOffset.y 
+      });
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging || e.touches.length !== 1) return;
+    setCropperOffset({
+      x: e.touches[0].clientX - dragStart.x,
+      y: e.touches[0].clientY - dragStart.y
+    });
+  };
+
+  const handleCropperSave = () => {
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 800;
+      const ctx = canvas.getContext('2d');
+
+      const ratio = 800 / 240;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 800, 800);
+
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const previewW = 240;
+      const previewH = 240 * (h / w);
+
+      const finalW = previewW * cropperScale * ratio;
+      const finalH = previewH * cropperScale * ratio;
+
+      const cx = 400 + cropperOffset.x * ratio;
+      const cy = 400 + cropperOffset.y * ratio;
+
+      const dx = cx - finalW / 2;
+      const dy = cy - finalH / 2;
+
+      ctx.drawImage(img, dx, dy, finalW, finalH);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          showNotice('头像生成失败', 'error');
+          return;
+        }
+        const file = new File([blob], 'avatar.webp', { type: 'image/webp' });
+        
+        try {
+          if (cropperKind === 'user' || cropperKind === 'ai') {
+            const formData = new FormData();
+            formData.append('file_data', file);
+            const res = await authFetch(`/api/auth/upload/avatar?kind=${cropperKind}`, { method: 'POST', body: formData });
+            if (!res.ok) throw new Error('上传头像失败');
+            const data = await res.json();
+            setUserProfileData(prev => ({ ...prev, [cropperKind === 'user' ? 'avatar' : 'ai_avatar']: data.file_url }));
+            showNotice(`${cropperKind === 'user' ? '用户' : 'AI'}头像上传成功`, 'success');
+          } else if (cropperKind === 'conv_user' || cropperKind === 'conv_ai') {
+            const data = await uploadFile(file);
+            if (cropperKind === 'conv_user') {
+              setProfileData(prev => ({ ...prev, user_avatar: data.file_url }));
+            } else {
+              setProfileData(prev => ({ ...prev, ai_avatar: data.file_url }));
+            }
+            showNotice('对话头像裁剪成功', 'success');
+          } else if (cropperKind === 'channel_avatar') {
+            const formData = new FormData();
+            formData.append('file_data', file);
+            const res = await authFetch(`/api/conversations/${activeChannelId}/avatar`, { method: 'POST', body: formData });
+            if (!res.ok) throw new Error('上传频道头像失败');
+            const data = await res.json();
+            
+            setConversations(prev => prev.map(c => c.channel_id === activeChannelId ? { ...c, channel_avatar: data.channel_avatar } : c));
+            showNotice('频道头像上传成功', 'success');
+          }
+          setShowCropper(false);
+        } catch (err) {
+          showNotice(err.message || '上传头像失败', 'error');
+        }
+      }, 'image/webp', 0.85);
+    };
+    img.src = cropperImage;
+  };
+
   const activeConv = conversations.find(c => c.channel_id === activeChannelId)
   const isGroupChat = activeConv?.kind === 'group'
 
@@ -589,7 +703,7 @@ export default function App({ currentUser: initialUser, onLogout }) {
     setShowUserSettings(true);
   };
 
-  const uploadUserAvatar = async (kind) => {
+  const uploadUserAvatar_OLD = async (kind) => {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
@@ -607,6 +721,26 @@ export default function App({ currentUser: initialUser, onLogout }) {
       } catch (err) {
         showNotice(err.message || '上传头像失败', 'error');
       }
+    };
+    fileInput.click();
+  };
+
+  const uploadUserAvatar = (kind) => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setCropperImage(event.target.result);
+        setCropperKind(kind);
+        setCropperScale(1);
+        setCropperOffset({ x: 0, y: 0 });
+        setShowCropper(true);
+      };
+      reader.readAsDataURL(file);
     };
     fileInput.click();
   };
@@ -723,7 +857,7 @@ export default function App({ currentUser: initialUser, onLogout }) {
     return await res.json()
   }
 
-  const handleAvatarUpload = async (e, type) => {
+  const handleAvatarUpload_OLD = async (e, type) => {
     const file = e.target.files[0]
     if (!file) return
     try {
@@ -738,6 +872,20 @@ export default function App({ currentUser: initialUser, onLogout }) {
       console.error('上传头像失败:', err)
     }
   }
+
+  const handleAvatarUpload = (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setCropperImage(event.target.result);
+      setCropperKind(type === 'user' ? 'conv_user' : 'conv_ai');
+      setCropperScale(1);
+      setCropperOffset({ x: 0, y: 0 });
+      setShowCropper(true);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const sendSticker = async (sticker) => {
     if (socketRef.current?.readyState !== WebSocket.OPEN || !activeChannelId) return
@@ -892,7 +1040,7 @@ export default function App({ currentUser: initialUser, onLogout }) {
               onClick={() => selectConversation(item.channel_id)}
             >
               <div className="chat-avatar">
-                <img src={resolveBackendAssetUrl(item.ai_avatar) || aiAvatar} alt={item.ai_name} />
+                <img src={resolveBackendAssetUrl(item.channel_avatar) || resolveBackendAssetUrl(item.ai_avatar) || aiAvatar} alt={item.ai_name} />
               </div>
               <div className="chat-meta">
                 <span className="chat-title">{item.channel_name}</span>
@@ -908,11 +1056,11 @@ export default function App({ currentUser: initialUser, onLogout }) {
       </aside>
 
       <section className="chat">
-        {notice && (
+        {notice && createPortal(
           <div className={`toast ${notice.level || 'warning'}`} role="status">
             {notice.message}
           </div>
-        )}
+        , document.body)}
         {activeChannelId ? (
           <div className="chat-content">
             <header className="chat-header">
@@ -954,7 +1102,7 @@ export default function App({ currentUser: initialUser, onLogout }) {
                         查看{groupMembers.length}名群成员 &gt;
                       </span>
                     </div>
-                    <div className="members-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px 8px', marginBottom: '20px' }}>
+                    <div className="members-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '12px 8px', marginBottom: '20px' }}>
                       {groupMembers.slice(0, 13).map(m => (
                         <div key={m.user_id} className="member-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', position: 'relative' }}>
                           <div className="member-avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden', border: '1px solid rgba(0,0,0,0.06)', position: 'relative' }}>
@@ -970,7 +1118,7 @@ export default function App({ currentUser: initialUser, onLogout }) {
                               </button>
                             )}
                           </div>
-                          <span className="member-name" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', textAlign: 'center' }}>{m.display_name}</span>
+                          <span className="member-name" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '48px', textAlign: 'center' }}>{m.display_name}</span>
                         </div>
                       ))}
 
@@ -998,6 +1146,45 @@ export default function App({ currentUser: initialUser, onLogout }) {
                     </div>
                   </div>
                 )}
+                <div className="form-group" style={{ padding: '0 16px', marginBottom: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '12px', display: 'block', fontWeight: 'bold', width: '100%', textAlign: 'left' }}>频道头像</label>
+                  <div style={{ position: 'relative', width: '80px', height: '80px' }}>
+                    <img 
+                      src={resolveBackendAssetUrl(activeConv?.channel_avatar) || resolveBackendAssetUrl(activeConv?.ai_avatar) || aiAvatar} 
+                      alt="频道头像" 
+                      style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(0,0,0,0.05)' }} 
+                    />
+                    {(!isGroupChat || activeConv?.user_id === currentUser?.id) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fileInput = document.createElement('input');
+                          fileInput.type = 'file';
+                          fileInput.accept = 'image/*';
+                          fileInput.onchange = (e) => {
+                            const file = e.target.files[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              setCropperImage(event.target.result);
+                              setCropperKind('channel_avatar');
+                              setCropperScale(1);
+                              setCropperOffset({ x: 0, y: 0 });
+                              setShowCropper(true);
+                            };
+                            reader.readAsDataURL(file);
+                          };
+                          fileInput.click();
+                        }}
+                        style={{ position: 'absolute', bottom: 0, right: 0, background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
+                        title="修改频道头像"
+                      >
+                        <UploadCloud size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {(!isGroupChat || activeConv?.user_id === currentUser?.id) ? (
                   <div className="form-group" style={{ padding: '0 16px', marginBottom: '24px' }}>
                     <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '6px', display: 'block', fontWeight: 'bold' }}>{isGroupChat ? '群聊名称' : '对话名称'}</label>
@@ -1403,6 +1590,77 @@ export default function App({ currentUser: initialUser, onLogout }) {
                   {previewFile.content}
                 </SyntaxHighlighter>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+      {showCropper && createPortal(
+        <div className="user-settings-overlay" style={{ zIndex: 100000 }} onClick={() => setShowCropper(false)}>
+          <div className="user-settings-modal" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="user-settings-header">
+              <h3>裁剪头像</h3>
+              <button className="close-btn" onClick={() => setShowCropper(false)}><X size={20} /></button>
+            </div>
+            <div className="user-settings-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', padding: '20px 10px' }}>
+              <div 
+                style={{ 
+                  width: '240px', 
+                  height: '240px', 
+                  borderRadius: '50%', 
+                  overflow: 'hidden', 
+                  position: 'relative', 
+                  border: '2px solid var(--primary)',
+                  background: '#1a1a1a',
+                  cursor: 'move',
+                  userSelect: 'none',
+                  boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)'
+                }}
+                onMouseDown={handleDragStart}
+                onMouseMove={handleDragMove}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleDragEnd}
+              >
+                <img 
+                  src={cropperImage} 
+                  alt="裁剪预览" 
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: `translate(calc(-50% + ${cropperOffset.x}px), calc(-50% + ${cropperOffset.y}px)) scale(${cropperScale})`,
+                    transformOrigin: 'center',
+                    maxWidth: 'none',
+                    maxHeight: 'none',
+                    width: '240px',
+                    height: 'auto'
+                  }}
+                  draggable="false"
+                />
+              </div>
+              
+              <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '12px', padding: '0 10px' }}>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', minWidth: '30px' }}>缩放</span>
+                <input 
+                  type="range" 
+                  min="0.5" 
+                  max="4" 
+                  step="0.01" 
+                  value={cropperScale} 
+                  onChange={(e) => setCropperScale(parseFloat(e.target.value))} 
+                  style={{ flex: 1, accentColor: 'var(--primary)' }}
+                />
+              </div>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', margin: 0 }}>
+                拖拽图片调整位置，自动压缩为 WebP (800x800)
+              </p>
+            </div>
+            <div className="user-settings-footer">
+              <button className="btn-cancel" onClick={() => setShowCropper(false)}>取消</button>
+              <button className="btn-save" onClick={handleCropperSave}>保存裁剪</button>
             </div>
           </div>
         </div>,

@@ -387,19 +387,19 @@ textarea {
 }
 
 .toast {
-  position: absolute;
-  top: 16px;
+  position: fixed;
+  top: 24px;
   left: 50%;
-  z-index: 20;
+  z-index: 99999;
   transform: translateX(-50%);
   width: min(560px, calc(100% - 48px));
-  padding: 10px 14px;
+  padding: 12px 16px;
   border: 1px solid rgba(245, 158, 11, 0.35);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: #fffbeb;
   color: #92400e;
-  box-shadow: var(--shadow-md);
-  font-size: 0.9rem;
+  box-shadow: var(--shadow-lg);
+  font-size: 0.95rem;
   line-height: 1.45;
 }
 
