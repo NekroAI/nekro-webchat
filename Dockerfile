@@ -43,7 +43,6 @@ RUN uv sync --frozen --no-cache
 
 # 复制后端应用代码
 COPY app/ /app/app/
-COPY static/ /app/static/
 
 # 复制前端构建产物到 Nginx 默认目录
 COPY --from=frontend-builder /frontend/dist /usr/share/nginx/html
@@ -55,8 +54,8 @@ COPY nginx.conf /etc/nginx/nginx.conf
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
-# 创建持久化目录
-RUN mkdir -p /app/data /app/uploads
+# 创建必要目录（包含持久化挂载以及后端所需的 static 目录）
+RUN mkdir -p /app/data /app/uploads /app/static
 
 # 暴露 Nginx 端口
 EXPOSE 80
