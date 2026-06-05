@@ -1,4 +1,4 @@
-# Nekro WebChat
+# Nekro WebChat SSE适配器实验项目
 
 <p align="center">
   <img src="doc/logo.png" alt="Nekro WebChat Logo" width="120" height="120">
